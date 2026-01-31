@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.idea/
+instance/
+*.db
+venv/
+.venv/
+frontend/.git
