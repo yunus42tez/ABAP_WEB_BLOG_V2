@@ -25,7 +25,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # Configure Flask to serve static files from the React build directory
-app = Flask(__name__, static_folder='frontend/dist/assets', template_folder='templates')
+# Define the path to the frontend build directory
+FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
+
+app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIST_DIR, 'assets'), template_folder='templates')
 CORS(app)
 
 load_dotenv()
@@ -35,7 +38,15 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Database Config
-app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///blog.db")
+# Handle Render's postgres:// URL format if necessary
+database_url = os.getenv("DATABASE_URL")
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+if not database_url:
+    raise ValueError("DATABASE_URL environment variable is not set!")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
@@ -365,11 +376,11 @@ def api_tags():
 # -------------------------------
 @app.route("/assets/<path:filename>")
 def serve_assets(filename):
-    return send_from_directory('frontend/dist/assets', filename)
+    return send_from_directory(os.path.join(FRONTEND_DIST_DIR, 'assets'), filename)
 
 @app.route("/robots.txt")
 def robots():
-    return send_from_directory('frontend/dist', 'robots.txt')
+    return send_from_directory(FRONTEND_DIST_DIR, 'robots.txt')
 
 @app.route("/sitemap.xml", methods=["GET"])
 def sitemap():
@@ -385,13 +396,16 @@ def sitemap():
 @app.route("/", defaults={'path': ''})
 @app.route("/<path:path>")
 def serve_react_app(path):
+    # Allow admin routes and API routes to pass through
     if path.startswith("zytez") or path.startswith("api"):
         return "Not Found", 404
         
-    if path and os.path.exists(os.path.join('frontend/dist', path)):
-        return send_from_directory('frontend/dist', path)
+    # Check if the file exists in the frontend build directory
+    if path and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
+        return send_from_directory(FRONTEND_DIST_DIR, path)
     
-    return send_from_directory('frontend/dist', 'index.html')
+    # Otherwise serve index.html for client-side routing
+    return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
 
 # -------------------------------
 # UTILS
