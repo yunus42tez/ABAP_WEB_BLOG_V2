@@ -25,7 +25,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # Configure Flask to serve static files from the React build directory
-# Define the path to the frontend build directory
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
 
 app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIST_DIR, 'assets'), template_folder='templates')
@@ -38,7 +37,6 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Database Config
-# Handle Render's postgres:// URL format if necessary
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -55,7 +53,6 @@ db = SQLAlchemy(app)
 # MODELS
 # -------------------------------
 
-# Association Table for Many-to-Many relationship between Post and Tag
 post_tags = db.Table('post_tags',
     db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
@@ -65,19 +62,11 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
 
-    def __repr__(self):
-        return f"<Tag {self.name}>"
-
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
-    
-    # Relationship
     posts = db.relationship('Post', backref='category', lazy=True)
-
-    def __repr__(self):
-        return f"<Category {self.name}>"
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,161 +74,166 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     views = db.Column(db.Integer, default=0)
-    
-    # Foreign Key
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
-    
-    # Many-to-Many Relationship
-    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery',
-        backref=db.backref('posts', lazy=True))
-
-    def __repr__(self):
-        return f"<Post {self.title}>"
+    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery', backref=db.backref('posts', lazy=True))
 
 with app.app_context():
     db.create_all()
-    
-    # Create default category if none exists
     if not Category.query.first():
         default_cat = Category(name="General", description="General topics")
         db.session.add(default_cat)
         db.session.commit()
 
 # -------------------------------
-# ADMIN ROUTES
+# ADMIN HELPERS & ROUTES
 # -------------------------------
+def is_admin():
+    return session.get("is_admin")
+
 @app.route("/zytez-login", methods=["GET", "POST"])
 def zytez_login():
     if request.method == "POST":
         user_id = request.form.get("user_id")
         password = request.form.get("password")
-        app.permanent_session_lifetime = timedelta(minutes=30)
-        session.permanent = True
-
         if user_id == ADMIN_ID and password == ADMIN_PASSWORD:
             session["is_admin"] = True
+            session.permanent = True
+            app.permanent_session_lifetime = timedelta(minutes=30)
             flash("✅ Giriş başarılı!", "success")
-            return redirect(url_for("zytez"))
+            return redirect(url_for("zytez_dashboard"))
         else:
             flash("❌ Hatalı ID veya şifre!", "error")
             return redirect(url_for("zytez_login"))
-
     return render_template("zytez_login.html")
 
 @app.route("/zytez")
-def zytez():
-    if not session.get("is_admin"):
-        flash("🔒 Lütfen giriş yapın!", "warning")
-        return redirect(url_for("zytez_login"))
+def zytez_dashboard():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    return render_template("zytez_dashboard.html")
+
+# --- Post Management ---
+@app.route("/zytez/posts")
+def manage_posts():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    posts = Post.query.order_by(Post.date_posted.desc()).all()
+    return render_template("manage_posts.html", posts=posts)
+
+@app.route("/zytez/posts/add", methods=["GET", "POST"])
+def add_post():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    if request.method == "POST":
+        new_post = Post(title=request.form['title'], content=request.form['content'], category_id=request.form['category_id'])
+        tag_ids = request.form.getlist('tags')
+        for tag_id in tag_ids:
+            tag = Tag.query.get(tag_id)
+            if tag: new_post.tags.append(tag)
+        db.session.add(new_post)
+        db.session.commit()
+        flash("✅ Yeni yazı eklendi!", "success")
+        return redirect(url_for("manage_posts"))
     
     categories = Category.query.all()
-    tags = Tag.query.all() # Fetch all tags for the checkbox list
-    return render_template("zytez.html", categories=categories, tags=tags)
+    tags = Tag.query.all()
+    return render_template("edit_post.html", post=None, categories=categories, tags=tags)
 
-@app.route("/zytez/add", methods=["POST"])
-def zytez_add_post():
-    if not session.get("is_admin"):
-        flash("🔒 Giriş yapmanız gerekiyor!", "warning")
-        return redirect(url_for("zytez_login"))
-
-    title = request.form.get("title")
-    content = request.form.get("content")
-    category_id = request.form.get("category_id")
-    
-    # Get list of selected tag IDs from checkboxes
-    selected_tag_ids = request.form.getlist("tags") 
-
-    if not title or not content:
-        flash("⚠️ Başlık ve içerik boş olamaz!", "error")
-        return redirect(url_for("zytez"))
-
-    new_post = Post(title=title, content=content, category_id=category_id)
-
-    # Handle Tags
-    for tag_id in selected_tag_ids:
-        tag = Tag.query.get(int(tag_id))
-        if tag:
-            new_post.tags.append(tag)
-
-    db.session.add(new_post)
-    db.session.commit()
-    flash("✅ Yeni yazı eklendi!", "success")
-
-    return redirect(url_for("zytez"))
-
-@app.route("/zytez/add-category", methods=["POST"])
-def zytez_add_category():
-    if not session.get("is_admin"):
-        flash("🔒 Giriş yapmanız gerekiyor!", "warning")
-        return redirect(url_for("zytez_login"))
-
-    name = request.form.get("name")
-    description = request.form.get("description")
-
-    if not name:
-        flash("⚠️ Kategori adı boş olamaz!", "error")
-        return redirect(url_for("zytez"))
-        
-    if Category.query.filter_by(name=name).first():
-        flash("⚠️ Bu kategori zaten var!", "error")
-        return redirect(url_for("zytez"))
-
-    new_cat = Category(name=name, description=description)
-    db.session.add(new_cat)
-    db.session.commit()
-    flash("✅ Yeni kategori eklendi!", "success")
-
-    return redirect(url_for("zytez"))
-
-@app.route("/zytez/add-tag", methods=["POST"])
-def zytez_add_tag():
-    """Admin panelinden yeni sabit etiket ekleme"""
-    if not session.get("is_admin"):
-        flash("🔒 Giriş yapmanız gerekiyor!", "warning")
-        return redirect(url_for("zytez_login"))
-
-    name = request.form.get("name")
-
-    if not name:
-        flash("⚠️ Etiket adı boş olamaz!", "error")
-        return redirect(url_for("zytez"))
-        
-    if Tag.query.filter_by(name=name).first():
-        flash("⚠️ Bu etiket zaten var!", "error")
-        return redirect(url_for("zytez"))
-
-    new_tag = Tag(name=name)
-    db.session.add(new_tag)
-    db.session.commit()
-    flash("✅ Yeni etiket eklendi!", "success")
-
-    return redirect(url_for("zytez"))
-
-@app.route("/zytez/delete", methods=["POST"])
-def zytez_delete_post():
-    if not session.get("is_admin"):
-        flash("🔒 Giriş yapmanız gerekiyor!", "warning")
-        return redirect(url_for("zytez_login"))
-
-    title = request.form.get("title")
-
-    if not title:
-        flash("⚠️ Başlık boş olamaz!", "error")
-        return redirect(url_for("zytez"))
-
-    post = Post.query.filter_by(title=title).first()
-
-    if not post:
-        flash("❌ Bu başlığa sahip bir yazı bulunamadı!", "error")
-    else:
-        db.session.delete(post)
+@app.route("/zytez/posts/edit/<int:post_id>", methods=["GET", "POST"])
+def edit_post(post_id):
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    post = Post.query.get_or_404(post_id)
+    if request.method == "POST":
+        post.title = request.form['title']
+        post.content = request.form['content']
+        post.category_id = request.form['category_id']
+        post.tags.clear()
+        tag_ids = request.form.getlist('tags')
+        for tag_id in tag_ids:
+            tag = Tag.query.get(tag_id)
+            if tag: post.tags.append(tag)
         db.session.commit()
-        flash(f"🗑️ '{title}' başlıklı yazı silindi.", "success")
+        flash("✅ Yazı güncellendi!", "success")
+        return redirect(url_for("manage_posts"))
 
-    return redirect(url_for("zytez"))
+    categories = Category.query.all()
+    tags = Tag.query.all()
+    return render_template("edit_post.html", post=post, categories=categories, tags=tags)
+
+@app.route("/zytez/posts/delete/<int:post_id>", methods=["POST"])
+def delete_post(post_id):
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    post = Post.query.get_or_404(post_id)
+    db.session.delete(post)
+    db.session.commit()
+    flash("🗑️ Yazı silindi.", "success")
+    return redirect(url_for("manage_posts"))
+
+# --- Category Management ---
+@app.route("/zytez/categories")
+def manage_categories():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    categories = Category.query.all()
+    return render_template("manage_categories.html", categories=categories)
+
+@app.route("/zytez/categories/add", methods=["POST"])
+def add_category():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    name = request.form.get("name")
+    if name and not Category.query.filter_by(name=name).first():
+        new_cat = Category(name=name, description=request.form.get("description"))
+        db.session.add(new_cat)
+        db.session.commit()
+        flash("✅ Yeni kategori eklendi!", "success")
+    else:
+        flash("⚠️ Kategori adı boş veya zaten var!", "error")
+    return redirect(url_for("manage_categories"))
+
+@app.route("/zytez/categories/delete/<int:cat_id>", methods=["POST"])
+def delete_category(cat_id):
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    category = Category.query.get_or_404(cat_id)
+    for post in category.posts:
+        post.category_id = None
+    db.session.delete(category)
+    db.session.commit()
+    flash("🗑️ Kategori silindi.", "success")
+    return redirect(url_for("manage_categories"))
+
+# --- Tag Management ---
+@app.route("/zytez/tags")
+def manage_tags():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    tags = Tag.query.all()
+    return render_template("manage_tags.html", tags=tags)
+
+@app.route("/zytez/tags/add", methods=["POST"])
+def add_tag():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    name = request.form.get("name")
+    if name and not Tag.query.filter_by(name=name).first():
+        new_tag = Tag(name=name)
+        db.session.add(new_tag)
+        db.session.commit()
+        flash("✅ Yeni etiket eklendi!", "success")
+    else:
+        flash("⚠️ Etiket adı boş veya zaten var!", "error")
+    return redirect(url_for("manage_tags"))
+
+@app.route("/zytez/tags/delete/<int:tag_id>", methods=["POST"])
+def delete_tag(tag_id):
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    tag = Tag.query.get_or_404(tag_id)
+    db.session.delete(tag)
+    db.session.commit()
+    flash("🗑️ Etiket silindi.", "success")
+    return redirect(url_for("manage_tags"))
+
+# --- DB Management ---
+@app.route("/zytez/database")
+def manage_database():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    return render_template("manage_db.html")
 
 # -------------------------------
-# API ROUTES
+# API & FRONTEND ROUTES
 # -------------------------------
 @app.route("/api/posts")
 def api_posts():
@@ -258,9 +252,6 @@ def api_posts():
                 return jsonify([])
         
         if search_query:
-            # 1. Başlıkta Kısmi Eşleşme (LIKE %query%)
-            title_match = Post.title.ilike(f"%{search_query}%")
-
             candidates = query.filter(
                 (Post.title.ilike(f"%{search_query}%")) | 
                 (Post.content.ilike(f"%{search_query}%"))
@@ -268,18 +259,13 @@ def api_posts():
             
             final_posts = []
             for p in candidates:
-                # Başlıkta varsa direkt ekle
                 if search_query.lower() in p.title.lower():
                     final_posts.append(p)
                     continue
                 
-                # İçerikte varsa, tam kelime kontrolü yap
-                # HTML taglerini temizle
                 soup = BeautifulSoup(p.content, 'html.parser')
                 text_content = soup.get_text()
                 
-                # Regex ile tam kelime araması (case-insensitive)
-                # \b kelime sınırı demektir.
                 if re.search(r'\b' + re.escape(search_query) + r'\b', text_content, re.IGNORECASE):
                     final_posts.append(p)
             
@@ -361,28 +347,23 @@ def api_tags():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -------------------------------
-# FRONTEND SERVING
-# -------------------------------
 @app.route("/", defaults={'path': ''})
-@app.route("/<path:path>")
-def serve_react_app(path):
+@app.route('/<path:path>')
+def serve(path):
     if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
         return send_from_directory(FRONTEND_DIST_DIR, path)
     else:
-        # API veya admin rotaları hariç her şeyi index.html'e yönlendir
         if not (path.startswith("api") or path.startswith("zytez")):
             return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
         else:
-            # API/admin rotaları zaten kendi @app.route'ları tarafından yakalanır,
-            # buraya düşerse 404'tür.
             return "Not Found", 404
 
 # -------------------------------
-# UTILS
+# UTILS (Backup/Restore)
 # -------------------------------
-@app.route('/backup')
-def backup():
+@app.route('/backup/docx')
+def backup_docx():
+    if not is_admin(): return redirect(url_for("zytez_login"))
     posts = Post.query.order_by(Post.date_posted.desc()).all()
     doc = Document()
     doc.add_heading('📚 Blog Yedek Raporu', 0)
@@ -427,8 +408,9 @@ def backup():
         headers={"Content-Disposition": "attachment; filename=blog_backup.docx"}
     )
 
-@app.route("/dump")
-def dump_db():
+@app.route("/backup/json")
+def backup_json():
+    if not is_admin(): return redirect(url_for("zytez_login"))
     posts = Post.query.all()
     categories = Category.query.all()
     tags = Tag.query.all()
@@ -460,15 +442,21 @@ def dump_db():
         headers={"Content-Disposition": "attachment;filename=db_dump.json"}
     )
 
-@app.route("/update", methods=["POST"])
-def update_db():
+@app.route("/restore/json", methods=["POST"])
+def restore_json():
+    if not is_admin(): return redirect(url_for("zytez_login"))
     file = request.files.get("dumpfile")
-    if not file: return "Dosya bulunamadı", 400
-    try: data = json.load(file)
-    except: return "JSON formatı hatalı!", 400
+    if not file:
+        flash("❌ Dosya bulunamadı", "error")
+        return redirect(url_for("manage_database"))
+    try:
+        data = json.load(file)
+    except:
+        flash("❌ JSON formatı hatalı!", "error")
+        return redirect(url_for("manage_database"))
 
     # Clear existing data
-    db.session.execute(post_tags.delete()) # Clear association table
+    db.session.execute(post_tags.delete())
     Post.query.delete()
     Category.query.delete()
     Tag.query.delete()
@@ -497,16 +485,16 @@ def update_db():
             category_id=p.get("category_id")
         )
         
-        # Link tags
         if "tags" in p:
             for t_name in p["tags"]:
                 tag = Tag.query.filter_by(name=t_name).first()
                 if tag:
                     new_post.tags.append(tag)
-
+                    
         db.session.add(new_post)
     db.session.commit()
-    return "DB başarıyla güncellendi!"
+    flash("✅ Veritabanı başarıyla geri yüklendi!", "success")
+    return redirect(url_for("manage_database"))
 
 @app.route("/logout")
 def logout():

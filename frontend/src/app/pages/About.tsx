@@ -1,25 +1,21 @@
 import { Code, Users, BookOpen, Target, GraduationCap, Briefcase } from 'lucide-react';
 import { SEO } from '@/app/components/SEO';
+import DigitalRainHeader from '@/app/components/DigitalRainHeader';
 
 export function About() {
   return (
     <div className="bg-[#f5f5f5] min-h-screen">
       <SEO
         title="About Yunus Tez"
-        description="Learn more about Yunus Tez, an ABAP Developer and lifelong learner. Discover his journey, academic background, and mission to share SAP knowledge."
+        description="Learn more about Yunus Tez, an ABAP Developer. Discover his journey, academic background, and mission to share SAP knowledge."
         keywords="Yunus Tez, About Yunus Tez, ABAP Developer, SAP Career"
       />
 
       <div className="max-w-[1400px] mx-auto px-6 py-12 animate-fade-in">
-        {/* Page Header */}
-        <div className="mb-12 text-center">
-          <h1 className="text-4xl font-semibold text-[#32363a] mb-3">Yunus Tez</h1>
-          <p className="text-lg text-[#6a6d70]">
-            ABAP Developer & Lifelong Learner
-          </p>
-        </div>
+        {/* New Animated Header */}
+        <DigitalRainHeader />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-12">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white border border-[#d9d9d9] rounded p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
@@ -62,7 +58,7 @@ export function About() {
                 My educational journey began with a degree in Public Administration from Manisa Celal Bayar University. The knowledge I gained in this field provided me with a strong analytical foundation in understanding how organizations operate, how business processes are managed, and how efficiency is achieved.
               </p>
               <p className="mt-4 text-[#6a6d70]">
-                However, my deep interest in technology and software pushed me to develop myself further in this area as well. I transformed this passion into technical expertise by completing an ERP bootcamp at Smartpro and graduating from the Computer Programming program at Anadolu University’s Open Education Faculty.
+                However, my deep interest in technology and software pushed me to develop myself further in this area as well. I transformed this passion into technical expertise by completing an ERP bootcamp at Smartpro and graduating from the Computer Programming at Anadolu University.
               </p>
             </div>
           </div>
