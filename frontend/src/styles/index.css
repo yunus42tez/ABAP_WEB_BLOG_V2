@@ -1,0 +1,183 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Global Styles for Blog Content */
+
+/* Kod Blokları (SAP Blog Stili) */
+.prose pre {
+  background-color: #f5f7f9; /* Açık gri arka plan */
+  border: 1px solid #d9d9d9; /* İnce gri kenarlık */
+  border-radius: 4px;
+  padding: 1rem;
+  overflow-x: auto; /* Uzun kodlarda yatay kaydırma */
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace; /* Kod fontu */
+  font-size: 0.85rem; /* Mobilde biraz daha küçük font */
+  color: #333;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 100%; /* Ekran dışına taşmayı önle */
+}
+
+/* Kod bloğu içindeki kod etiketleri */
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  border: none;
+  font-family: inherit;
+  color: inherit;
+  white-space: pre; /* Kod formatını koru */
+}
+
+/* Satır içi kodlar (Inline Code) */
+.prose :not(pre) > code {
+  background-color: #f0f0f0;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #c7254e; /* Kırmızımsı vurgu */
+  word-break: break-word; /* Uzun inline kodları kır */
+}
+
+/* Paragraf Boşluklarını Dengeleme ve Taşmayı Önleme */
+.prose p {
+  margin-bottom: 1rem;
+  line-height: 1.6;
+  overflow-wrap: break-word; /* Uzun kelimeleri kır */
+  word-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Resimlerin Taşmasını Önleme */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Başlıklar */
+.prose h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: #32363a;
+  line-height: 1.3;
+}
+
+.prose h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+  color: #32363a;
+  line-height: 1.3;
+}
+
+/* Tabloların Taşmasını Önleme */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+/* --- ANIMATIONS --- */
+
+/* 1. Code Icon Animation (Sadece Büyüme - Dönme Yok) */
+@keyframes codePulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25); /* Belirgin büyüme */
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.code-icon-animation {
+  animation: codePulse 2s infinite ease-in-out;
+}
+
+/* 2. Layers Icon Animation (Yüzen katmanlar efekti) */
+@keyframes layersFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px); /* Yukarı hareket */
+  }
+}
+
+.layers-icon-animation {
+  animation: layersFloat 3s infinite ease-in-out;
+}
+
+/* 3. Zap Icon Animation (Gerçekçi Şimşek Çakması) */
+@keyframes lightningFlash {
+  0%, 100% {
+    fill: transparent; /* Normal hali (içi boş) */
+    stroke: #0A6ED1; /* Mavi kenarlık */
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(1);
+  }
+
+  /* İlk Çakma */
+  10% {
+    fill: #FFD700; /* Sarı dolgu */
+    stroke: #FFD700;
+    filter: drop-shadow(0 0 10px #FFD700); /* Parlama efekti */
+    transform: scale(1.1);
+  }
+  12% {
+    fill: #FFFFFF; /* Beyaz (çok parlak) */
+    stroke: #FFFFFF;
+    filter: drop-shadow(0 0 15px #FFFFFF);
+    transform: scale(1.15);
+  }
+  14% {
+    fill: #FFD700; /* Tekrar sarı */
+    stroke: #FFD700;
+    filter: drop-shadow(0 0 10px #FFD700);
+    transform: scale(1.1);
+  }
+
+  /* Kısa bir sönme */
+  20% {
+    fill: transparent;
+    stroke: #0A6ED1;
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(1);
+  }
+
+  /* İkinci Çakma (Daha kısa) */
+  30% {
+    fill: #FFD700;
+    stroke: #FFD700;
+    filter: drop-shadow(0 0 8px #FFD700);
+    transform: scale(1.05);
+  }
+  35% {
+    fill: transparent;
+    stroke: #0A6ED1;
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(1);
+  }
+}
+
+.zap-icon-animation {
+  /* stroke özelliğini animasyonla kontrol edebilmek için */
+  stroke-width: 2px;
+  animation: lightningFlash 3s infinite; /* 3 saniyede bir döngü */
+}
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
