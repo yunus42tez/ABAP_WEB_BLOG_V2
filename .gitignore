@@ -1,35 +1,22 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
+# Python Virtual Environments
+.venv
+venv
 env/
 
-# Environment Variables
-.env
+# Python Cache
+__pycache__/
 
-# IDE
+# IDE specific files
 .idea/
 .vscode/
-*.swp
-*.iml
 
-# Database
+# Environment variables
+.env
+
+# Local Database Files
 instance/
 *.db
 *.sqlite3
 
-# Frontend
+# Frontend Dependencies
 frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/.env.local
-frontend/.env.*.local
-
-# Logs
-*.log
-
-# OS
-.DS_Store
-Thumbs.db

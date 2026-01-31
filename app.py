@@ -260,17 +260,7 @@ def api_posts():
         if search_query:
             # 1. Başlıkta Kısmi Eşleşme (LIKE %query%)
             title_match = Post.title.ilike(f"%{search_query}%")
-            
-            # 2. İçerikte Tam Kelime Eşleşmesi (Regex veya LIKE ile boşluklu kontrol)
-            # SQLite'da REGEX desteği sınırlı olabilir, bu yüzden Python tarafında filtreleme yapmak daha güvenli olabilir
-            # Ancak performans için önce geniş bir filtreleme yapıp sonra Python'da eleyebiliriz.
-            # Veya basitçe LIKE kullanarak kelimenin başında ve sonunda boşluk/noktalama arayabiliriz.
-            # Şimdilik basitlik ve uyumluluk için LIKE kullanıyoruz ama "kelime" mantığına yaklaşıyoruz.
-            
-            # Not: Tam kelime eşleşmesi veritabanı seviyesinde zordur (özellikle SQLite ile).
-            # En iyi yöntem: İçeriği çekip Python'da regex ile kontrol etmektir.
-            
-            # Önce potansiyel adayları çekelim (Başlıkta VEYA İçerikte geçenler)
+
             candidates = query.filter(
                 (Post.title.ilike(f"%{search_query}%")) | 
                 (Post.content.ilike(f"%{search_query}%"))
@@ -374,38 +364,19 @@ def api_tags():
 # -------------------------------
 # FRONTEND SERVING
 # -------------------------------
-@app.route("/assets/<path:filename>")
-def serve_assets(filename):
-    return send_from_directory(os.path.join(FRONTEND_DIST_DIR, 'assets'), filename)
-
-@app.route("/robots.txt")
-def robots():
-    return send_from_directory(FRONTEND_DIST_DIR, 'robots.txt')
-
-@app.route("/sitemap.xml", methods=["GET"])
-def sitemap():
-    try:
-        posts = Post.query.order_by(Post.date_posted.desc()).all()
-        base_url = "https://ytez-abap-blog.onrender.com"
-        lastmod = posts[0].date_posted if posts else datetime.utcnow()
-        xml = render_template("sitemap.xml", posts=posts, base_url=base_url, lastmod=lastmod)
-        return Response(xml, mimetype="application/xml")
-    except Exception:
-        return "Sitemap not available", 404
-
 @app.route("/", defaults={'path': ''})
 @app.route("/<path:path>")
 def serve_react_app(path):
-    # Allow admin routes and API routes to pass through
-    if path.startswith("zytez") or path.startswith("api"):
-        return "Not Found", 404
-        
-    # Check if the file exists in the frontend build directory
-    if path and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
         return send_from_directory(FRONTEND_DIST_DIR, path)
-    
-    # Otherwise serve index.html for client-side routing
-    return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
+    else:
+        # API veya admin rotaları hariç her şeyi index.html'e yönlendir
+        if not (path.startswith("api") or path.startswith("zytez")):
+            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
+        else:
+            # API/admin rotaları zaten kendi @app.route'ları tarafından yakalanır,
+            # buraya düşerse 404'tür.
+            return "Not Found", 404
 
 # -------------------------------
 # UTILS

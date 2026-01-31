@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /zytez
+Disallow: /zytez-login
+
+Sitemap: https://yunustez.com/sitemap.xml
