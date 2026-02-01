@@ -3,4 +3,4 @@ Allow: /
 Disallow: /zytez
 Disallow: /zytez-login
 
-Sitemap: https://yunustez.com/sitemap.xml
+Sitemap: https://ytez-abap-blog.onrender.com/sitemap.xml

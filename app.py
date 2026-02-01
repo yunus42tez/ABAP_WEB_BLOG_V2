@@ -19,13 +19,15 @@ from sqlalchemy import or_, and_
 # ==========================
 # 🧩 Third-Party Imports
 # ==========================
-from flask import (Flask, Response, flash, redirect, render_template, request,
+from flask import (Flask, Response, flash, redirect, render_template, request, make_response,
                    send_from_directory, session, url_for, jsonify)
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # Configure Flask to serve static files from the React build directory
-FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FRONTEND_DIST_DIR = os.path.join(BASE_DIR, 'frontend', 'dist')
+CUSTOM_ASSETS_DIR = os.path.join(BASE_DIR, 'assets')  # Ana dizindeki assets klasörü
 
 app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIST_DIR, 'assets'), template_folder='templates')
 CORS(app)
@@ -119,6 +121,20 @@ def zytez_login():
 def zytez_dashboard():
     if not is_admin(): return redirect(url_for("zytez_login"))
     return render_template("zytez_dashboard.html")
+
+# --- Sitemap Route (SEO) ---
+@app.route('/sitemap.xml')
+def sitemap():
+    host = "https://ytez-abap-blog.onrender.com"
+    posts = Post.query.order_by(Post.date_posted.desc()).all()
+    categories = Category.query.all()
+    
+    # Render sitemap template with current posts
+    sitemap_xml = render_template('sitemap.xml', posts=posts, categories=categories, host=host)
+    
+    response = make_response(sitemap_xml)
+    response.headers["Content-Type"] = "application/xml"
+    return response
 
 # --- Post Management ---
 @app.route("/zytez/posts")
@@ -381,13 +397,21 @@ def api_tags():
 @app.route("/", defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    # 1. Önce React Build (dist) klasörüne bak (JS, CSS vb. için)
     if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
         return send_from_directory(FRONTEND_DIST_DIR, path)
-    else:
-        if not (path.startswith("api") or path.startswith("zytez")):
-            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
-        else:
-            return "Not Found", 404
+    
+    # 2. Bulamazsa, ana dizindeki 'assets' klasörüne bak (dolphin1.png vb. için)
+    if path.startswith("assets/"):
+        filename = path.replace("assets/", "", 1)
+        if os.path.exists(os.path.join(CUSTOM_ASSETS_DIR, filename)):
+            return send_from_directory(CUSTOM_ASSETS_DIR, filename)
+
+    # 3. Hiçbiri değilse ve API değilse, SPA için index.html döndür
+    if not (path.startswith("api") or path.startswith("zytez")):
+        return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
+    
+    return "Not Found", 404
 
 # ... (Backup/Restore routes remain the same) ...
 @app.route('/backup/docx')
