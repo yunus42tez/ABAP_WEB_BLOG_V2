@@ -23,10 +23,10 @@ export function SEO({
   const defaultKeywords = "SAP, ABAP, SAP ABAP, Yunus Tez, Yunus Tez ABAP, CDS, BTP, Legacy ABAP, Modern ABAP, Fiori, UI5, OData, RAP, CAP";
   const allKeywords = keywords ? `${keywords}, ${defaultKeywords}` : defaultKeywords;
 
-  // Use the provided image or fallback to the absolute URL of the dolphin icon
+  // Use the provided image or fallback to the absolute URL of the dolphin icon in public folder
   const absoluteImageUrl = image
     ? (image.startsWith('http') ? image : `${url}${image}`)
-    : 'https://ytez-abap-blog.onrender.com/assets/dolphin1.png';
+    : 'https://ytez-abap-blog.onrender.com/preview.png';
 
   return (
     <Helmet>
