@@ -13,8 +13,8 @@ export function SEO({
   title,
   description,
   keywords,
-  image = '/dolphin1.png',
-  url = 'https://ytez-abap-blog.onrender.com', // Canlı domaininiz
+  image,
+  url = 'https://ytez-abap-blog.onrender.com',
   type = 'website'
 }: SEOProps) {
 
@@ -23,8 +23,10 @@ export function SEO({
   const defaultKeywords = "SAP, ABAP, SAP ABAP, Yunus Tez, Yunus Tez ABAP, CDS, BTP, Legacy ABAP, Modern ABAP, Fiori, UI5, OData, RAP, CAP";
   const allKeywords = keywords ? `${keywords}, ${defaultKeywords}` : defaultKeywords;
 
-  // Create absolute URL for the image
-  const absoluteImageUrl = `${url}${image}`;
+  // Use the provided image or fallback to the absolute URL of the dolphin icon
+  const absoluteImageUrl = image
+    ? (image.startsWith('http') ? image : `${url}${image}`)
+    : 'https://ytez-abap-blog.onrender.com/assets/dolphin1.png';
 
   return (
     <Helmet>
@@ -45,7 +47,7 @@ export function SEO({
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:creator" content="@yunus42tez" /> {/* Varsa Twitter kullanıcı adınız */}
+      <meta name="twitter:creator" content="@yunus42tez" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={absoluteImageUrl} />
