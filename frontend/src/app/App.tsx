@@ -7,9 +7,8 @@ import { Categories } from '@/app/pages/Categories';
 import { CategoryDetail } from '@/app/pages/CategoryDetail';
 import { About } from '@/app/pages/About';
 import { PageTransition } from '@/app/components/PageTransition';
+import { BlogProvider } from '@/app/context/BlogContext';
 
-// Animasyonun her sayfa değişiminde tetiklenmesi için
-// Routes'u sarmalayan bir bileşen kullanacağız.
 function AnimatedRoutes() {
   const location = useLocation();
 
@@ -51,25 +50,27 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1">
-          <AnimatedRoutes />
-        </main>
-        
-        {/* Footer */}
-        <footer className="bg-white border-t border-[#d9d9d9] py-8">
-          <div className="max-w-[1400px] mx-auto px-6">
-            <div className="text-center text-[#6a6d70]">
-              <p>© 2026 SAP Tech Blog. All rights reserved.</p>
-              <p className="mt-2 text-sm">
-                Built with React, TypeScript, Tailwind CSS, Python, Flask, SQLAlchemy • Inspired by SAP Fiori Design
-              </p>
+    <BlogProvider>
+      <BrowserRouter>
+        <div className="min-h-screen flex flex-col">
+          <Header />
+          <main className="flex-1">
+            <AnimatedRoutes />
+          </main>
+
+          {/* Footer */}
+          <footer className="bg-white border-t border-[#d9d9d9] py-8">
+            <div className="max-w-[1400px] mx-auto px-6">
+              <div className="text-center text-[#6a6d70]">
+                <p>© 2026 SAP Tech Blog. All rights reserved.</p>
+                <p className="mt-2 text-sm">
+                  Built with React, TypeScript, Tailwind CSS, Python, Flask, SQLAlchemy • Inspired by SAP Fiori Design
+                </p>
+              </div>
             </div>
-          </div>
-        </footer>
-      </div>
-    </BrowserRouter>
+          </footer>
+        </div>
+      </BrowserRouter>
+    </BlogProvider>
   );
 }

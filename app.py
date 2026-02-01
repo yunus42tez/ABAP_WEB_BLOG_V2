@@ -62,11 +62,17 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
 
+    def __repr__(self):
+        return f"<Tag {self.name}>"
+
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
     posts = db.relationship('Post', backref='category', lazy=True)
+
+    def __repr__(self):
+        return f"<Category {self.name}>"
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -76,6 +82,9 @@ class Post(db.Model):
     views = db.Column(db.Integer, default=0)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     tags = db.relationship('Tag', secondary=post_tags, lazy='subquery', backref=db.backref('posts', lazy=True))
+
+    def __repr__(self):
+        return f"<Post {self.title}>"
 
 with app.app_context():
     db.create_all()
@@ -233,11 +242,13 @@ def manage_database():
     return render_template("manage_db.html")
 
 # -------------------------------
-# API & FRONTEND ROUTES
+# API ROUTES
 # -------------------------------
 @app.route("/api/posts")
 def api_posts():
     try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
         category_slug = request.args.get('category')
         search_query = request.args.get('q')
         
@@ -249,7 +260,7 @@ def api_posts():
             if category:
                 query = query.filter_by(category_id=category.id)
             else:
-                return jsonify([])
+                return jsonify({'posts': [], 'total': 0, 'pages': 0})
         
         if search_query:
             candidates = query.filter(
@@ -269,9 +280,20 @@ def api_posts():
                 if re.search(r'\b' + re.escape(search_query) + r'\b', text_content, re.IGNORECASE):
                     final_posts.append(p)
             
-            posts = final_posts
+            # Manual pagination for search results (since we filtered in Python)
+            total = len(final_posts)
+            start = (page - 1) * per_page
+            end = start + per_page
+            paginated_posts = final_posts[start:end]
+            total_pages = ceil(total / per_page)
+            
+            posts = paginated_posts
         else:
-            posts = query.order_by(Post.date_posted.desc()).all()
+            # Database pagination
+            pagination = query.order_by(Post.date_posted.desc()).paginate(page=page, per_page=per_page, error_out=False)
+            posts = pagination.items
+            total = pagination.total
+            total_pages = pagination.pages
         
         data = []
         for p in posts:
@@ -291,7 +313,13 @@ def api_posts():
                 "tags": tag_names,
                 "category": cat_name
             })
-        return jsonify(data)
+            
+        return jsonify({
+            'posts': data,
+            'total': total,
+            'pages': total_pages,
+            'current_page': page
+        })
     except Exception as e:
         print(f"Error fetching posts: {e}")
         return jsonify({"error": str(e)}), 500
@@ -347,6 +375,9 @@ def api_tags():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# -------------------------------
+# FRONTEND SERVING
+# -------------------------------
 @app.route("/", defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
@@ -358,9 +389,7 @@ def serve(path):
         else:
             return "Not Found", 404
 
-# -------------------------------
-# UTILS (Backup/Restore)
-# -------------------------------
+# ... (Backup/Restore routes remain the same) ...
 @app.route('/backup/docx')
 def backup_docx():
     if not is_admin(): return redirect(url_for("zytez_login"))
@@ -503,4 +532,4 @@ def logout():
     return redirect("/")
 
 if __name__ == "__main__":
-    app.run(debug=False)
+    app.run(debug=True)

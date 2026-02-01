@@ -1,21 +1,15 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArrowRight, Code, Layers, Zap } from 'lucide-react';
-import { BlogCard, BlogPost } from '@/app/components/BlogCard';
-import { useEffect, useState } from 'react';
+import { BlogCard } from '@/app/components/BlogCard';
 import { SEO } from '@/app/components/SEO';
+import { useBlog } from '@/app/context/BlogContext';
+import { LoadingSpinner } from '@/app/components/LoadingSpinner';
 
 export function Home() {
-  const [featuredPosts, setFeaturedPosts] = useState<BlogPost[]>([]);
+  const { posts, loading } = useBlog();
 
-  useEffect(() => {
-    fetch('/api/posts')
-      .then(res => res.json())
-      .then(data => {
-        // Take first 3 posts as featured
-        setFeaturedPosts(data.slice(0, 3));
-      })
-      .catch(err => console.error("Failed to fetch posts", err));
-  }, []);
+  // Get first 3 posts from context
+  const featuredPosts = posts.slice(0, 3);
 
   return (
     <div className="bg-[#f5f5f5]">
@@ -121,11 +115,15 @@ export function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredPosts.map((post) => (
-              <BlogCard key={post.id} post={post} />
-            ))}
-          </div>
+          {loading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredPosts.map((post) => (
+                <BlogCard key={post.id} post={post} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

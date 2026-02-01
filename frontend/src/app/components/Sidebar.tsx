@@ -1,71 +1,27 @@
 import { Link } from 'react-router-dom';
 import { Tag, FolderOpen, Clock } from 'lucide-react';
-import { useEffect, useState } from 'react';
-
-interface Category {
-  name: string;
-  count: number;
-}
-
-interface RecentPost {
-  id: string;
-  title: string;
-  date: string;
-}
+import { useBlog } from '@/app/context/BlogContext';
 
 interface SidebarProps {
-  categories?: Category[];
-  recentPosts?: RecentPost[];
+  // Props are now optional as we use context by default
+  categories?: any[];
+  recentPosts?: any[];
   popularTags?: string[];
 }
 
-export function Sidebar({ categories: propCategories, recentPosts, popularTags: propTags }: SidebarProps) {
-  const [recent, setRecent] = useState<RecentPost[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
+export function Sidebar({ categories: propCategories, recentPosts: propRecent, popularTags: propTags }: SidebarProps) {
+  const { posts, categories, tags } = useBlog();
 
-  useEffect(() => {
-    // Fetch recent posts if not provided
-    if (!recentPosts) {
-      fetch('/api/posts')
-        .then(res => res.json())
-        .then(data => {
-          const mapped = data.slice(0, 5).map((p: any) => ({
-            id: p.id,
-            title: p.title,
-            date: p.date
-          }));
-          setRecent(mapped);
-        })
-        .catch(err => console.error("Failed to fetch recent posts", err));
-    } else {
-      setRecent(recentPosts);
-    }
+  // Use props if provided, otherwise use context data
+  const displayCategories = propCategories || categories;
+  const displayTags = propTags || tags;
 
-    // Fetch categories if not provided
-    if (!propCategories) {
-      fetch('/api/categories')
-        .then(res => res.json())
-        .then(data => {
-          setCategories(data);
-        })
-        .catch(err => console.error("Failed to fetch categories", err));
-    } else {
-      setCategories(propCategories);
-    }
-
-    // Fetch tags if not provided
-    if (!propTags) {
-      fetch('/api/tags')
-        .then(res => res.json())
-        .then(data => {
-          setTags(data);
-        })
-        .catch(err => console.error("Failed to fetch tags", err));
-    } else {
-      setTags(propTags);
-    }
-  }, [recentPosts, propCategories, propTags]);
+  // Derive recent posts from context if not provided
+  const displayRecent = propRecent || posts.slice(0, 5).map(p => ({
+    id: p.id,
+    title: p.title,
+    date: p.date
+  }));
 
   return (
     <aside className="space-y-6">
@@ -76,7 +32,7 @@ export function Sidebar({ categories: propCategories, recentPosts, popularTags: 
           Categories
         </h3>
         <ul className="space-y-2">
-          {categories.map((category) => (
+          {displayCategories.map((category) => (
             <li key={category.name}>
               <Link
                 to={`/categories/${category.name.toLowerCase().replace(/\s+/g, '-')}`}
@@ -101,7 +57,7 @@ export function Sidebar({ categories: propCategories, recentPosts, popularTags: 
           Recent Posts
         </h3>
         <ul className="space-y-3">
-          {recent.map((post) => (
+          {displayRecent.map((post) => (
             <li key={post.id}>
               <Link
                 to={`/blog/${post.id}`}
@@ -124,8 +80,8 @@ export function Sidebar({ categories: propCategories, recentPosts, popularTags: 
           Popular Tags
         </h3>
         <div className="flex flex-wrap gap-2">
-          {tags.length > 0 ? (
-            tags.map((tag) => (
+          {displayTags.length > 0 ? (
+            displayTags.map((tag) => (
               <span
                 key={tag}
                 className="px-3 py-1.5 rounded bg-[#f5f5f5] text-[#6a6d70] text-sm cursor-default"
