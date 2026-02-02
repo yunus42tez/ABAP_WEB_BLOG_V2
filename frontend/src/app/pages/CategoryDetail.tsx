@@ -8,7 +8,7 @@ import { SEO } from '@/app/components/SEO';
 
 export function CategoryDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const { posts, loading: contextLoading } = useBlog();
+  const { posts: contextPosts, loading: contextLoading } = useBlog();
   const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>([]);
   const [categoryName, setCategoryName] = useState("");
 
@@ -20,18 +20,15 @@ export function CategoryDetail() {
       ).join(' ');
       setCategoryName(readableName);
 
+      // Use context for instant filtering, no need for another API call
       if (!contextLoading) {
-        // Filter posts from context based on category name
-        // Note: This assumes category name in post matches the slug format roughly
-        // A more robust way would be to match IDs, but names work for now
-        const filtered = posts.filter(post =>
-          post.category.toLowerCase() === readableName.toLowerCase() ||
+        const filtered = contextPosts.filter(post =>
           post.category.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
         );
         setFilteredPosts(filtered);
       }
     }
-  }, [slug, posts, contextLoading]);
+  }, [slug, contextPosts, contextLoading]);
 
   return (
     <div className="bg-[#f5f5f5] min-h-screen">
