@@ -62,7 +62,7 @@ export default function App() {
           <footer className="bg-white border-t border-[#d9d9d9] py-8">
             <div className="max-w-[1400px] mx-auto px-6">
               <div className="text-center text-[#6a6d70]">
-                <p>© 2026 SAP Tech Blog. All rights reserved.</p>
+                <p>© 2026 Yunus Tez's SAP Tech Blog. All rights reserved.</p>
                 <p className="mt-2 text-sm">
                   Built with React, TypeScript, Tailwind CSS, Python, Flask, SQLAlchemy • Inspired by SAP Fiori Design
                 </p>

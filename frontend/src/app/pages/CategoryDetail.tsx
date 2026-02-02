@@ -2,36 +2,45 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { BlogCard, BlogPost } from '@/app/components/BlogCard';
 import { ArrowLeft } from 'lucide-react';
+import { useBlog } from '@/app/context/BlogContext';
+import { LoadingSpinner } from '@/app/components/LoadingSpinner';
+import { SEO } from '@/app/components/SEO';
 
 export function CategoryDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const [posts, setPosts] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { posts, loading: contextLoading } = useBlog();
+  const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>([]);
   const [categoryName, setCategoryName] = useState("");
 
   useEffect(() => {
     if (slug) {
-      // Convert slug back to readable name for display (approximate)
+      // Convert slug back to readable name for display
       const readableName = slug.split('-').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
       ).join(' ');
       setCategoryName(readableName);
 
-      fetch(`/api/posts?category=${slug}`)
-        .then(res => res.json())
-        .then(data => {
-          setPosts(data);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error("Failed to fetch category posts", err);
-          setLoading(false);
-        });
+      if (!contextLoading) {
+        // Filter posts from context based on category name
+        // Note: This assumes category name in post matches the slug format roughly
+        // A more robust way would be to match IDs, but names work for now
+        const filtered = posts.filter(post =>
+          post.category.toLowerCase() === readableName.toLowerCase() ||
+          post.category.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
+        );
+        setFilteredPosts(filtered);
+      }
     }
-  }, [slug]);
+  }, [slug, posts, contextLoading]);
 
   return (
     <div className="bg-[#f5f5f5] min-h-screen">
+      <SEO
+        title={`${categoryName} Articles`}
+        description={`Browse all articles related to ${categoryName} on Yunus Tez's SAP Blog.`}
+        keywords={`${categoryName}, SAP, ABAP`}
+      />
+
       <div className="max-w-[1400px] mx-auto px-6 py-12">
         {/* Back Button */}
         <Link
@@ -48,16 +57,16 @@ export function CategoryDetail() {
             {categoryName}
           </h1>
           <p className="text-lg text-[#6a6d70]">
-            {loading ? "Loading..." : `${posts.length} articles found`}
+            {contextLoading ? "Loading..." : `${filteredPosts.length} articles found`}
           </p>
         </div>
 
         {/* Posts Grid */}
-        {loading ? (
-          <p>Loading posts...</p>
-        ) : posts.length > 0 ? (
+        {contextLoading ? (
+          <LoadingSpinner />
+        ) : filteredPosts.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post) => (
+            {filteredPosts.map((post) => (
               <BlogCard key={post.id} post={post} />
             ))}
           </div>
