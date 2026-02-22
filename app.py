@@ -25,6 +25,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # Configure Flask to serve static files from the React build directory
+# Define the path to the frontend build directory
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
 
 app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIST_DIR, 'assets'), template_folder='templates')
@@ -37,6 +38,7 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Database Config
+# Handle Render's postgres:// URL format if necessary
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -53,6 +55,7 @@ db = SQLAlchemy(app)
 # MODELS
 # -------------------------------
 
+# Association Table for Many-to-Many relationship between Post and Tag
 post_tags = db.Table('post_tags',
     db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
@@ -69,6 +72,8 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
+    
+    # Relationship
     posts = db.relationship('Post', backref='category', lazy=True)
 
     def __repr__(self):
@@ -80,14 +85,21 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     views = db.Column(db.Integer, default=0)
+    
+    # Foreign Key
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
-    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery', backref=db.backref('posts', lazy=True))
+    
+    # Many-to-Many Relationship
+    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery',
+        backref=db.backref('posts', lazy=True))
 
     def __repr__(self):
         return f"<Post {self.title}>"
 
 with app.app_context():
     db.create_all()
+    
+    # Create default category if none exists
     if not Category.query.first():
         default_cat = Category(name="General", description="General topics")
         db.session.add(default_cat)
@@ -255,22 +267,12 @@ def api_posts():
         query = Post.query
         
         if category_slug:
-            # Convert slug to name (e.g., "abap-development" -> "ABAP Development")
-            # We use ilike for case-insensitive matching and replace dashes with spaces
             clean_name = category_slug.replace('-', ' ')
-            
-            # Try to find the category
             category = Category.query.filter(Category.name.ilike(clean_name)).first()
-            
             if category:
                 query = query.filter_by(category_id=category.id)
             else:
-                # If not found, maybe it's a direct match (e.g. "SAP")
-                category = Category.query.filter(Category.name.ilike(category_slug)).first()
-                if category:
-                    query = query.filter_by(category_id=category.id)
-                else:
-                    return jsonify({'posts': [], 'total': 0, 'pages': 0})
+                return jsonify({'posts': [], 'total': 0, 'pages': 0})
         
         if search_query:
             candidates = query.filter(
@@ -383,18 +385,9 @@ def api_tags():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/", defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
-        return send_from_directory(FRONTEND_DIST_DIR, path)
-    else:
-        if not (path.startswith("api") or path.startswith("zytez")):
-            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
-        else:
-            return "Not Found", 404
-
-# ... (Backup/Restore routes remain the same) ...
+# -------------------------------
+# UTILS (Backup/Restore)
+# -------------------------------
 @app.route('/backup/docx')
 def backup_docx():
     if not is_admin(): return redirect(url_for("zytez_login"))
@@ -462,7 +455,7 @@ def backup_json():
                 "id": p.id,
                 "title": p.title,
                 "content": p.content,
-                "views": p.views,
+                "views": p.get("views", 0) if hasattr(p, "views") else 0, # Handle potential missing attribute
                 "date_posted": p.date_posted.strftime("%Y-%m-%d"),
                 "category_id": p.category_id,
                 "tags": [t.name for t in p.tags]
@@ -530,11 +523,36 @@ def restore_json():
     flash("✅ Veritabanı başarıyla geri yüklendi!", "success")
     return redirect(url_for("manage_database"))
 
+@app.route("/sitemap.xml", methods=["GET"])
+def sitemap():
+    try:
+        posts = Post.query.order_by(Post.date_posted.desc()).all()
+        base_url = "https://yunustez.com.tr"
+        lastmod = posts[0].date_posted if posts else datetime.utcnow()
+        xml = render_template("sitemap.xml", posts=posts, base_url=base_url, lastmod=lastmod)
+        return Response(xml, mimetype="application/xml")
+    except Exception:
+        return "Sitemap not available", 404
+
 @app.route("/logout")
 def logout():
     session.pop("is_admin", None)
     flash("👋 Oturum kapatıldı.", "info")
     return redirect("/")
+
+# -------------------------------
+# FRONTEND SERVING (Catch-all)
+# -------------------------------
+@app.route("/", defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
+        return send_from_directory(FRONTEND_DIST_DIR, path)
+    else:
+        if not (path.startswith("api") or path.startswith("zytez")):
+            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
+        else:
+            return "Not Found", 404
 
 if __name__ == "__main__":
     app.run(debug=True)

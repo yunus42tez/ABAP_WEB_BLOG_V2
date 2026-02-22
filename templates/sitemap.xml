@@ -2,20 +2,36 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <!-- Ana Sayfa -->
     <url>
-        <loc>{{ host }}/</loc>
+        <loc>{{ base_url }}/</loc>
+        <lastmod>{{ lastmod.strftime('%Y-%m-%d') }}</lastmod>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
     </url>
     <!-- Blog Sayfası -->
     <url>
-        <loc>{{ host }}/blog</loc>
+        <loc>{{ base_url }}/blog</loc>
+        <lastmod>{{ lastmod.strftime('%Y-%m-%d') }}</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
+    </url>
+    <!-- Hakkımda Sayfası -->
+    <url>
+        <loc>{{ base_url }}/about</loc>
+        <lastmod>{{ lastmod.strftime('%Y-%m-%d') }}</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    <!-- Kategoriler Sayfası -->
+    <url>
+        <loc>{{ base_url }}/categories</loc>
+        <lastmod>{{ lastmod.strftime('%Y-%m-%d') }}</lastmod>
+        <changefreq>weekly</changefreq>
+        <priority>0.8</priority>
     </url>
     <!-- Dinamik Blog Yazıları -->
     {% for post in posts %}
     <url>
-        <loc>{{ host }}/blog?id={{ post.id }}</loc>
+        <loc>{{ base_url }}/blog/{{ post.id }}</loc>
         <lastmod>{{ post.date_posted.strftime('%Y-%m-%d') }}</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>
