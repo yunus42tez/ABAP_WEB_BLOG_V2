@@ -143,15 +143,37 @@ def manage_posts():
 def add_post():
     if not is_admin(): return redirect(url_for("zytez_login"))
     if request.method == "POST":
-        new_post = Post(title=request.form['title'], content=request.form['content'], category_id=request.form['category_id'])
-        tag_ids = request.form.getlist('tags')
-        for tag_id in tag_ids:
-            tag = Tag.query.get(tag_id)
-            if tag: new_post.tags.append(tag)
-        db.session.add(new_post)
-        db.session.commit()
-        flash("✅ Yeni yazı eklendi!", "success")
-        return redirect(url_for("manage_posts"))
+        try:
+            title = request.form.get('title')
+            content = request.form.get('content')
+            category_id = request.form.get('category_id')
+            
+            if not title or not content or not category_id:
+                flash("⚠️ Başlık, içerik ve kategori zorunludur!", "error")
+                return redirect(url_for("add_post"))
+
+            new_post = Post(
+                title=title, 
+                content=content, 
+                category_id=int(category_id)
+            )
+            
+            # Handle Tags
+            tag_ids = request.form.getlist('tags')
+            for tag_id in tag_ids:
+                tag = Tag.query.get(int(tag_id))
+                if tag:
+                    new_post.tags.append(tag)
+            
+            db.session.add(new_post)
+            db.session.commit()
+            flash("✅ Yeni yazı eklendi!", "success")
+            return redirect(url_for("manage_posts"))
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error adding post: {e}")
+            flash(f"❌ Hata oluştu: {str(e)}", "error")
+            return redirect(url_for("add_post"))
     
     categories = Category.query.all()
     tags = Tag.query.all()
@@ -161,18 +183,29 @@ def add_post():
 def edit_post(post_id):
     if not is_admin(): return redirect(url_for("zytez_login"))
     post = Post.query.get_or_404(post_id)
+    
     if request.method == "POST":
-        post.title = request.form['title']
-        post.content = request.form['content']
-        post.category_id = request.form['category_id']
-        post.tags.clear()
-        tag_ids = request.form.getlist('tags')
-        for tag_id in tag_ids:
-            tag = Tag.query.get(tag_id)
-            if tag: post.tags.append(tag)
-        db.session.commit()
-        flash("✅ Yazı güncellendi!", "success")
-        return redirect(url_for("manage_posts"))
+        try:
+            post.title = request.form.get('title')
+            post.content = request.form.get('content')
+            post.category_id = int(request.form.get('category_id'))
+            
+            # Update Tags
+            post.tags.clear()
+            tag_ids = request.form.getlist('tags')
+            for tag_id in tag_ids:
+                tag = Tag.query.get(int(tag_id))
+                if tag:
+                    post.tags.append(tag)
+            
+            db.session.commit()
+            flash("✅ Yazı güncellendi!", "success")
+            return redirect(url_for("manage_posts"))
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error editing post: {e}")
+            flash(f"❌ Hata oluştu: {str(e)}", "error")
+            return redirect(url_for("edit_post", post_id=post_id))
 
     categories = Category.query.all()
     tags = Tag.query.all()
@@ -386,6 +419,20 @@ def api_tags():
         return jsonify({"error": str(e)}), 500
 
 # -------------------------------
+# FRONTEND SERVING
+# -------------------------------
+@app.route("/", defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
+        return send_from_directory(FRONTEND_DIST_DIR, path)
+    else:
+        if not (path.startswith("api") or path.startswith("zytez")):
+            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
+        else:
+            return "Not Found", 404
+
+# -------------------------------
 # UTILS (Backup/Restore)
 # -------------------------------
 @app.route('/backup/docx')
@@ -455,7 +502,7 @@ def backup_json():
                 "id": p.id,
                 "title": p.title,
                 "content": p.content,
-                "views": p.get("views", 0) if hasattr(p, "views") else 0, # Handle potential missing attribute
+                "views": p.views,
                 "date_posted": p.date_posted.strftime("%Y-%m-%d"),
                 "category_id": p.category_id,
                 "tags": [t.name for t in p.tags]
@@ -539,20 +586,6 @@ def logout():
     session.pop("is_admin", None)
     flash("👋 Oturum kapatıldı.", "info")
     return redirect("/")
-
-# -------------------------------
-# FRONTEND SERVING (Catch-all)
-# -------------------------------
-@app.route("/", defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(FRONTEND_DIST_DIR, path)):
-        return send_from_directory(FRONTEND_DIST_DIR, path)
-    else:
-        if not (path.startswith("api") or path.startswith("zytez")):
-            return send_from_directory(FRONTEND_DIST_DIR, 'index.html')
-        else:
-            return "Not Found", 404
 
 if __name__ == "__main__":
     app.run(debug=True)
