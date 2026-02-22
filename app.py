@@ -14,7 +14,7 @@ from docx import Document
 from docx.shared import Inches
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 
 # ==========================
 # 🧩 Third-Party Imports
@@ -25,7 +25,6 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 
 # Configure Flask to serve static files from the React build directory
-# Define the path to the frontend build directory
 FRONTEND_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
 
 app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIST_DIR, 'assets'), template_folder='templates')
@@ -38,7 +37,6 @@ ADMIN_ID = os.getenv("ADMIN_ID")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Database Config
-# Handle Render's postgres:// URL format if necessary
 database_url = os.getenv("DATABASE_URL")
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -55,7 +53,6 @@ db = SQLAlchemy(app)
 # MODELS
 # -------------------------------
 
-# Association Table for Many-to-Many relationship between Post and Tag
 post_tags = db.Table('post_tags',
     db.Column('post_id', db.Integer, db.ForeignKey('post.id'), primary_key=True),
     db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
@@ -65,19 +62,11 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
 
-    def __repr__(self):
-        return f"<Tag {self.name}>"
-
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
-    
-    # Relationship
     posts = db.relationship('Post', backref='category', lazy=True)
-
-    def __repr__(self):
-        return f"<Category {self.name}>"
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -85,21 +74,11 @@ class Post(db.Model):
     content = db.Column(db.Text, nullable=False)
     date_posted = db.Column(db.DateTime, default=datetime.utcnow)
     views = db.Column(db.Integer, default=0)
-    
-    # Foreign Key
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
-    
-    # Many-to-Many Relationship
-    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery',
-        backref=db.backref('posts', lazy=True))
-
-    def __repr__(self):
-        return f"<Post {self.title}>"
+    tags = db.relationship('Tag', secondary=post_tags, lazy='subquery', backref=db.backref('posts', lazy=True))
 
 with app.app_context():
     db.create_all()
-    
-    # Create default category if none exists
     if not Category.query.first():
         default_cat = Category(name="General", description="General topics")
         db.session.add(default_cat)
@@ -158,7 +137,6 @@ def add_post():
                 category_id=int(category_id)
             )
             
-            # Handle Tags
             tag_ids = request.form.getlist('tags')
             for tag_id in tag_ids:
                 tag = Tag.query.get(int(tag_id))
@@ -183,14 +161,12 @@ def add_post():
 def edit_post(post_id):
     if not is_admin(): return redirect(url_for("zytez_login"))
     post = Post.query.get_or_404(post_id)
-    
     if request.method == "POST":
         try:
             post.title = request.form.get('title')
             post.content = request.form.get('content')
             post.category_id = int(request.form.get('category_id'))
             
-            # Update Tags
             post.tags.clear()
             tag_ids = request.form.getlist('tags')
             for tag_id in tag_ids:
@@ -418,9 +394,6 @@ def api_tags():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -------------------------------
-# FRONTEND SERVING
-# -------------------------------
 @app.route("/", defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
@@ -502,7 +475,7 @@ def backup_json():
                 "id": p.id,
                 "title": p.title,
                 "content": p.content,
-                "views": p.views,
+                "views": p.get("views", 0) if hasattr(p, "views") else 0,
                 "date_posted": p.date_posted.strftime("%Y-%m-%d"),
                 "category_id": p.category_id,
                 "tags": [t.name for t in p.tags]
@@ -515,6 +488,19 @@ def backup_json():
         mimetype="application/json",
         headers={"Content-Disposition": "attachment;filename=db_dump.json"}
     )
+
+def fix_sequences():
+    """PostgreSQL sequence'larını tablodaki max ID'ye göre düzeltir."""
+    try:
+        # PostgreSQL'e özgü sequence düzeltme komutları
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('post', 'id'), coalesce(max(id),0) + 1, false) FROM post;"))
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('category', 'id'), coalesce(max(id),0) + 1, false) FROM category;"))
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('tag', 'id'), coalesce(max(id),0) + 1, false) FROM tag;"))
+        db.session.commit()
+        print("✅ Sequences fixed successfully.")
+    except Exception as e:
+        print(f"⚠️ Could not fix sequences (might be SQLite): {e}")
+        db.session.rollback()
 
 @app.route("/restore/json", methods=["POST"])
 def restore_json():
@@ -567,7 +553,18 @@ def restore_json():
                     
         db.session.add(new_post)
     db.session.commit()
+    
+    # Fix sequences after restore
+    fix_sequences()
+    
     flash("✅ Veritabanı başarıyla geri yüklendi!", "success")
+    return redirect(url_for("manage_database"))
+
+@app.route("/zytez/fix-sequences")
+def manual_fix_sequences():
+    if not is_admin(): return redirect(url_for("zytez_login"))
+    fix_sequences()
+    flash("✅ Veritabanı sayaçları düzeltildi.", "success")
     return redirect(url_for("manage_database"))
 
 @app.route("/sitemap.xml", methods=["GET"])
