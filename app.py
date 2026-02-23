@@ -62,11 +62,17 @@ class Tag(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), nullable=False, unique=True)
 
+    def __repr__(self):
+        return f"<Tag {self.name}>"
+
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
     description = db.Column(db.String(255), nullable=True)
     posts = db.relationship('Post', backref='category', lazy=True)
+
+    def __repr__(self):
+        return f"<Category {self.name}>"
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -76,6 +82,9 @@ class Post(db.Model):
     views = db.Column(db.Integer, default=0)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True)
     tags = db.relationship('Tag', secondary=post_tags, lazy='subquery', backref=db.backref('posts', lazy=True))
+
+    def __repr__(self):
+        return f"<Post {self.title}>"
 
 with app.app_context():
     db.create_all()
@@ -330,7 +339,8 @@ def api_posts():
                 "date": p.date_posted.strftime("%B %d, %Y"),
                 "author": "Yunus Tez",
                 "tags": tag_names,
-                "category": cat_name
+                "category": cat_name,
+                "category_id": str(p.category_id) if p.category_id else None # Added category_id
             })
             
         return jsonify({
@@ -360,7 +370,8 @@ def api_post_detail(id):
             "date": p.date_posted.strftime("%B %d, %Y"),
             "author": "Yunus Tez",
             "tags": tag_names,
-            "category": cat_name
+            "category": cat_name,
+            "category_id": str(p.category_id) if p.category_id else None # Added category_id
         })
     except Exception as e:
         print(f"Error fetching post detail: {e}")
@@ -394,6 +405,9 @@ def api_tags():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# -------------------------------
+# FRONTEND SERVING
+# -------------------------------
 @app.route("/", defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
@@ -408,6 +422,18 @@ def serve(path):
 # -------------------------------
 # UTILS (Backup/Restore)
 # -------------------------------
+def fix_sequences():
+    """PostgreSQL sequence'larını tablodaki max ID'ye göre düzeltir."""
+    try:
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('post', 'id'), coalesce(max(id),0) + 1, false) FROM post;"))
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('category', 'id'), coalesce(max(id),0) + 1, false) FROM category;"))
+        db.session.execute(text("SELECT setval(pg_get_serial_sequence('tag', 'id'), coalesce(max(id),0) + 1, false) FROM tag;"))
+        db.session.commit()
+        print("✅ Sequences fixed successfully.")
+    except Exception as e:
+        print(f"⚠️ Could not fix sequences (might be SQLite): {e}")
+        db.session.rollback()
+
 @app.route('/backup/docx')
 def backup_docx():
     if not is_admin(): return redirect(url_for("zytez_login"))
@@ -489,19 +515,6 @@ def backup_json():
         headers={"Content-Disposition": "attachment;filename=db_dump.json"}
     )
 
-def fix_sequences():
-    """PostgreSQL sequence'larını tablodaki max ID'ye göre düzeltir."""
-    try:
-        # PostgreSQL'e özgü sequence düzeltme komutları
-        db.session.execute(text("SELECT setval(pg_get_serial_sequence('post', 'id'), coalesce(max(id),0) + 1, false) FROM post;"))
-        db.session.execute(text("SELECT setval(pg_get_serial_sequence('category', 'id'), coalesce(max(id),0) + 1, false) FROM category;"))
-        db.session.execute(text("SELECT setval(pg_get_serial_sequence('tag', 'id'), coalesce(max(id),0) + 1, false) FROM tag;"))
-        db.session.commit()
-        print("✅ Sequences fixed successfully.")
-    except Exception as e:
-        print(f"⚠️ Could not fix sequences (might be SQLite): {e}")
-        db.session.rollback()
-
 @app.route("/restore/json", methods=["POST"])
 def restore_json():
     if not is_admin(): return redirect(url_for("zytez_login"))
@@ -554,9 +567,8 @@ def restore_json():
         db.session.add(new_post)
     db.session.commit()
     
-    # Fix sequences after restore
     fix_sequences()
-    
+
     flash("✅ Veritabanı başarıyla geri yüklendi!", "success")
     return redirect(url_for("manage_database"))
 

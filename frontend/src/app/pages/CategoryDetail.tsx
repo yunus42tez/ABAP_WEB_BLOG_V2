@@ -8,27 +8,45 @@ import { SEO } from '@/app/components/SEO';
 
 export function CategoryDetail() {
   const { slug } = useParams<{ slug: string }>();
-  const { posts: contextPosts, loading: contextLoading } = useBlog();
+  const { posts: contextPosts, categories, loading: contextLoading } = useBlog();
   const [filteredPosts, setFilteredPosts] = useState<BlogPost[]>([]);
   const [categoryName, setCategoryName] = useState("");
 
   useEffect(() => {
     if (slug) {
-      // Convert slug back to readable name for display
+      // 1. Convert slug to readable name for display
       const readableName = slug.split('-').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
       ).join(' ');
       setCategoryName(readableName);
 
-      // Use context for instant filtering, no need for another API call
       if (!contextLoading) {
-        const filtered = contextPosts.filter(post =>
-          post.category.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
+        // 2. Find the actual category object from the categories list using the slug
+        // We create a slug from each category name to compare with the URL slug
+        const matchedCategory = categories.find(cat =>
+          cat.name.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
         );
+
+        // 3. Filter posts
+        let filtered: BlogPost[] = [];
+
+        if (matchedCategory) {
+          // If we found the category object, filter posts by exact category name match
+          // This is safer than trying to reconstruct the name from slug
+          filtered = contextPosts.filter(post =>
+            post.category === matchedCategory.name
+          );
+        } else {
+          // Fallback: If category not found in list (rare), try loose matching
+          filtered = contextPosts.filter(post =>
+            post.category.toLowerCase().replace(/\s+/g, '-') === slug.toLowerCase()
+          );
+        }
+
         setFilteredPosts(filtered);
       }
     }
-  }, [slug, contextPosts, contextLoading]);
+  }, [slug, contextPosts, categories, contextLoading]);
 
   return (
     <div className="bg-[#f5f5f5] min-h-screen">
