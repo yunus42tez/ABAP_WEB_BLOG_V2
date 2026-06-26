@@ -42,7 +42,8 @@
 
 /* Paragraf Boşluklarını Dengeleme ve Taşmayı Önleme */
 .prose p {
-  margin-bottom: 1rem;
+  margin-top: 0;
+  margin-bottom: 0;
   line-height: 1.6;
   overflow-wrap: break-word; /* Uzun kelimeleri kır */
   word-wrap: break-word;
