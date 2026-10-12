@@ -75,19 +75,110 @@
         var initialContent = `{{ post.content|safe if post else '' }}`;
         quill.root.innerHTML = initialContent;
 
-        document.getElementById('postForm').onsubmit = function(e) {
+        // ---------- Image optimization ----------
+        // Images are stored as base64 inside the post content. Raw phone photos are several MB each,
+        // so we resize + re-encode them in the browser to keep posts small and saves fast.
+        var MAX_IMAGE_DIM = 1600;              // px, longest side
+        var IMAGE_QUALITY = 0.82;
+        var COMPRESS_THRESHOLD = 150 * 1024;   // only re-encode data URLs larger than ~150 KB
+
+        function readFileAsDataURL(file) {
+            return new Promise(function (resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function () { resolve(reader.result); };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadImage(src) {
+            return new Promise(function (resolve, reject) {
+                var img = new Image();
+                img.onload = function () { resolve(img); };
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        async function compressDataUrl(dataUrl) {
+            // Keep animated GIFs and SVGs as they are
+            if (/^data:image\/(gif|svg)/i.test(dataUrl)) return dataUrl;
+
+            var img = await loadImage(dataUrl);
+            var scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.naturalWidth, img.naturalHeight));
+            var w = Math.round(img.naturalWidth * scale);
+            var h = Math.round(img.naturalHeight * scale);
+
+            var canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // WebP keeps transparency; fall back to JPEG (white background) if unsupported
+            var out = canvas.toDataURL('image/webp', IMAGE_QUALITY);
+            if (out.indexOf('data:image/webp') !== 0) {
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, w, h);
+                out = canvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+            }
+            return out.length < dataUrl.length ? out : dataUrl;
+        }
+
+        // Toolbar image button: allow multiple selection and compress before inserting
+        quill.getModule('toolbar').addHandler('image', function () {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.multiple = true;
+            input.onchange = async function () {
+                for (var i = 0; i < input.files.length; i++) {
+                    var original = await readFileAsDataURL(input.files[i]);
+                    var compressed = original;
+                    try { compressed = await compressDataUrl(original); } catch (err) { console.warn('Image compression failed', err); }
+                    var range = quill.getSelection(true);
+                    quill.insertEmbed(range.index, 'image', compressed, 'user');
+                    quill.setSelection(range.index + 1, 0);
+                }
+            };
+            input.click();
+        });
+
+        var postForm = document.getElementById('postForm');
+        var submitBtn = postForm.querySelector('button[type="submit"]');
+        var isSubmitting = false;
+
+        postForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            if (isSubmitting) return;
+
             var category = document.getElementById('category').value;
             if (!category) {
                 alert('⚠️ Lütfen bir kategori seçin!');
-                e.preventDefault(); return false;
+                return;
             }
             var checkboxes = document.querySelectorAll('input[name="tags"]:checked');
             if (checkboxes.length === 0) {
                 alert('⚠️ Lütfen en az bir etiket seçin!');
-                e.preventDefault(); return false;
+                return;
             }
+
+            isSubmitting = true;
+            submitBtn.disabled = true;
+
+            // Compress large images that came in via paste / drag & drop or older posts
+            var images = quill.root.querySelectorAll('img[src^="data:image"]');
+            for (var i = 0; i < images.length; i++) {
+                if (images[i].src.length > COMPRESS_THRESHOLD) {
+                    submitBtn.textContent = 'Görseller optimize ediliyor (' + (i + 1) + '/' + images.length + ')...';
+                    try { images[i].src = await compressDataUrl(images[i].src); } catch (err) { console.warn('Image compression failed', err); }
+                }
+            }
+
             document.getElementById('hiddenContent').value = quill.root.innerHTML;
-        };
+            submitBtn.textContent = 'Kaydediliyor...';
+            postForm.submit(); // native submit, does not re-trigger this handler
+        });
     </script>
 </body>
 </html>

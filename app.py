@@ -47,7 +47,19 @@ if not database_url:
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# Upload limits: post content embeds images as base64 inside a form field.
+# Flask 3.1 defaults MAX_FORM_MEMORY_SIZE to 500 KB, which breaks posts with many images.
+# None = no limit on Flask side (a reverse proxy / hosting platform may still enforce its own).
+app.config["MAX_CONTENT_LENGTH"] = None      # whole request: unlimited
+app.config["MAX_FORM_MEMORY_SIZE"] = None    # single form field: unlimited
+
 db = SQLAlchemy(app)
+
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    flash("❌ İçerik çok büyük! Lütfen görsel sayısını veya boyutunu azaltın.", "error")
+    return redirect(request.referrer or url_for("manage_posts"))
 
 # -------------------------------
 # MODELS
